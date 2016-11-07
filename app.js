@@ -24,6 +24,7 @@ io.on('connection', function(socket) {
     socket.on('chat', function(message) {
       // ส่งข้อความที่ได้ไปหาทุกๆ client ที่เชื่อมต่อกับท่อชื่อ "chat"
       io.emit('chat', message + ' @' + getTime());
+      console.log('message: ' + message);
     });
 });
 
