@@ -18,13 +18,17 @@ html
                         var socket = io();
                         // เมื่อ form ถูก submit ให้ทำอะไร?
                         $('#chat-form').submit(function() {
+                            if($('#chat-message').val()=='clear'){
+                                $('#chat-form').reset();
+                            }
                             // ส่งข้อความที่พิมพ์มาไปยัง server ผ่านทางท่อชื่อ "chat"
-                            socket.emit('chat', $('#chat-message').val());
+                            socket.emit('command', $('#chat-message').val());
+                            $('#chat-message').val('');
                             return false;
                         });
 
                         // เมื่อได้รับข้อมูลจากท่อ "chat" ให้ทำอะไร?
-                        socket.on('chat', function(message) {
+                        socket.on('command', function(message) {
                             // แสดงผลข้อความที่ได้มาออกมาทางหน้าจอ
                             $('#chat-history').append($('<li class="message">').text(message));
                         });
