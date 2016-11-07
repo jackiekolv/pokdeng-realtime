@@ -28,7 +28,7 @@ html
             var username = Math.floor((Math.random() * 100) + 1);
 
             // เมื่อเชื่อมต่อสำเร็จ ให้ส่งข้อความไปบอก server
-            socket.emit('chat', {
+            socket.emit('command', {
                 username: username,
                 message: 'I\'m connected.'
             });
@@ -36,7 +36,7 @@ html
             // เมื่อ submit form ให้ทำอะไร?
             chatForm.submit(function() {
                 // ส่งทั้ง username และ ข้อความไปให้ server
-                socket.emit('chat', {
+                socket.emit('command', {
                     username: username,
                     message: inputMessage.val()
             	});
@@ -47,7 +47,7 @@ html
             });
 
             // เมื่อได้รับข้อมูลจาก server ให้ทำอะไร?
-            socket.on('chat', function(data) {
+            socket.on('command', function(data) {
                 if (data.username == username) {
                     // ถ้าเราเป็นคนส่งเอง ให้พ่น li.message.message--me
                     chatHistory.append($('<li class="message message--me">').text(data.message + ' @'+getTime()));
