@@ -10,21 +10,66 @@ html
                 ul#chat-history
                 form#chat-form(action="")
                     input.box(type="text", id="chat-message", autocomplete="off", placeholder="Enter message here...")
+        script(src="https://cdn.socket.io/socket.io-1.3.3.js")
+        script(src="https://code.jquery.com/jquery-2.1.3.min.js")
+        script.
+            // เอา Socket.IO มาใช้งาน
+            var socket = io();
 
-                    script(src="https://cdn.socket.io/socket.io-1.3.3.js")
-                    // โหลด jQuery มาใช้งาน
-                    script(src="https://code.jquery.com/jquery-2.1.3.min.js")
-                    script.
-                        var socket = io();
-                        // เมื่อ form ถูก submit ให้ทำอะไร?
-                        $('#chat-form').submit(function() {
-                            // ส่งข้อความที่พิมพ์มาไปยัง server ผ่านทางท่อชื่อ "chat"
-                            socket.emit('chat', $('#chat-message').val());
-                            return false;
-                        });
+            // get element ต่างๆ มารอไว้ก่อน
+            var chatForm = $('#chat-form');
+            var chatHistory = $("#chat-history");
+            var inputMessage = $('#chat-message');
 
-                        // เมื่อได้รับข้อมูลจากท่อ "chat" ให้ทำอะไร?
-                        socket.on('chat', function(message) {
-                            // แสดงผลข้อความที่ได้มาออกมาทางหน้าจอ
-                            $('#chat-history').append($('<li class="message">').text(message));
-                        });
+            // set ให้ focus ที่ input ตั้งแต่เริ่ม
+            inputMessage.focus();
+
+            // สร้าง username โดยการสุ่มแบบง่ายๆ
+            var username = Math.floor((Math.random() * 100) + 1);
+
+            // เมื่อเชื่อมต่อสำเร็จ ให้ส่งข้อความไปบอก server
+            socket.emit('chat', {
+                username: username,
+                message: 'I\'m connected.'
+            });
+
+            // เมื่อ submit form ให้ทำอะไร?
+            chatForm.submit(function() {
+                // ส่งทั้ง username และ ข้อความไปให้ server
+                socket.emit('chat', {
+                    username: username,
+                    message: inputMessage.val()
+            	});
+
+            	// clear ค่า input
+                $(this)[0].reset();
+                return false;
+            });
+
+            // เมื่อได้รับข้อมูลจาก server ให้ทำอะไร?
+            socket.on('chat', function(data) {
+                if (data.username == username) {
+                    // ถ้าเราเป็นคนส่งเอง ให้พ่น li.message.message--me
+                    chatHistory.append($('<li class="message message--me">').text(data.message + ' @'+getTime()));
+            	} else {
+            	    // แต่ถ้าเป็นคนอื่นส่ง ให้พ่น li.message เฉยๆ
+                    chatHistory.append($('<li class="message">').text(data.username + ': ' + data.message + ' @'+getTime()));
+            	}
+            	// เมื่อพ่นข้อความแล้ว ก็ให้เลื่อนหน้าจอไปที่ข้อความล่าสุดด้วย
+                chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
+            });
+
+            function getTime() {
+                var date = new Date();
+
+                var hour = date.getHours();
+                hour = (hour < 10 ? "0" : "") + hour;
+
+                var min  = date.getMinutes();
+                min = (min < 10 ? "0" : "") + min;
+
+                var sec  = date.getSeconds();
+                sec = (sec < 10 ? "0" : "") + sec;
+
+                return hour + ":" + min + ":" + sec;
+            }
