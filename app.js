@@ -34,12 +34,11 @@ io.on('connection', function(socket) {
       if(count >= 51 || data.message == 'shuffle'){
           shuffle(deck);
           count = 0;
-      }
-      if(data.message == 'pok'){
+      }else if(data.message == 'pok'){
           data.message = '['+deck[count++]+']' + '['+deck[count++]+']';
           socket.emit('command', data);
       }else{
-          socket.emit('command', data);
+          io.emit('command', data);
       }
     });
 });
