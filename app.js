@@ -35,6 +35,8 @@ io.on('connection', function(socket) {
           shuffle(deck);
           count = 0;
       }else if(data.message == 'pok'){
+          data.message = 'จั่วไพ่';
+          io.emit('command', data);
           data.message = '['+deck[count++]+']' + '['+deck[count++]+']';
           socket.emit('command', data);
       }else{

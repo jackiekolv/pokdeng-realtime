@@ -6,6 +6,8 @@ html
         link(rel='stylesheet', href='css/main.css')
     body
         div.box.box--container
+            input.box(type="text", id="name-here", autocomplete="off", placeholder="Your name here...")
+        div.box.box--container
             div.box.box--chat
                 ul#chat-history
                 form#chat-form(action="")
@@ -26,6 +28,18 @@ html
 
             // สร้าง username โดยการสุ่มแบบง่ายๆ
             var username = Math.floor((Math.random() * 100) + 1);
+
+            $('#name-here').on('blur', function() {
+              var temp_name = username;
+              username = $('#name-here').val();
+              var nameChangeString = 'User ['+temp_name+'] has changed their name to ['+username+']';
+              socket.emit('command',
+                {
+                    username: username,
+                    message: nameChangeString
+                }
+              );
+            });
 
             // เมื่อเชื่อมต่อสำเร็จ ให้ส่งข้อความไปบอก server
             socket.emit('command', {

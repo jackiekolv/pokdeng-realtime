@@ -47,9 +47,16 @@ body {
     background: #B3ED7A;
     float: right;
 }
- 
+
 #chat-message {
     background: #f5f5f5;
     padding: 10px;
+    border: 1px solid #d5d5d5;
+}
+
+#name-here {
+    background: #ffffff;
+    border-radius: 5px;
+    height: 40px;
     border: 1px solid #d5d5d5;
 }
