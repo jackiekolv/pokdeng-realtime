@@ -12,6 +12,9 @@ html
                 ul#chat-history
                 form#chat-form(action="")
                     input.box(type="text", id="chat-message", autocomplete="off", placeholder="Enter message here...")
+        div.box.box--container#show-card
+            img(src="PNG-cards-1.3/red_joker.png" style="width:80px" id="card1")
+            img(src="PNG-cards-1.3/red_joker.png" style="width:80px" id="card2")
         script(src="https://cdn.socket.io/socket.io-1.3.3.js")
         script(src="https://code.jquery.com/jquery-2.1.3.min.js")
         script.
@@ -76,6 +79,14 @@ html
               	}
               	// เมื่อพ่นข้อความแล้ว ก็ให้เลื่อนหน้าจอไปที่ข้อความล่าสุดด้วย
                 chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
+            });
+
+            socket.on('card1', function(data){
+                $("#card1").attr("src","PNG-cards-1.3/"+data.message);
+            });
+
+            socket.on('card2', function(data){
+                $("#card2").attr("src","PNG-cards-1.3/"+data.message);
             });
 
             function getTime() {

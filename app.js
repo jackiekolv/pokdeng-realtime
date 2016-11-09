@@ -3,10 +3,10 @@ var app = express();
 var path = require('path');
 var port = 8081;
 //s,c,d,h
-var deck = ["1s","2s","3s","4s","5s","6s","7s","8s","9s","10s","Js","Qs","Ks"
-           ,"1h","2h","3h","4h","5h","6h","7h","8h","9h","10h","Jh","Qh","Kh"
-           ,"1d","2d","3d","4d","5d","6d","7d","8d","9d","10d","Jd","Qd","Kd"
-           ,"1c","2c","3c","4c","5c","6c","7c","8c","9c","10c","Jc","Qc","Kc"];
+var deck = ["ace_of_spades2.png","2_of_spades.png","3_of_spades.png","4_of_spades.png","5_of_spades.png","6_of_spades.png","7_of_spades.png","8_of_spades.png","9_of_spades.png","10_of_spades.png","jack_of_spades2.png","queen_of_spades2.png","king_of_spades2.png"
+           ,"ace_of_hearts.png","2_of_hearts.png","3_of_hearts.png","4_of_hearts.png","5_of_hearts.png","6_of_hearts.png","7_of_hearts.png","8_of_hearts.png","9_of_hearts.png","10_of_hearts.png","jack_of_hearts2.png","queen_of_hearts2.png","king_of_hearts2.png"
+           ,"ace_of_diamonds.png","2_of_diamonds.png","3_of_diamonds.png","4_of_diamonds.png","5_of_diamonds.png","6_of_diamonds.png","7_of_diamonds.png","8_of_diamonds.png","9_of_diamonds.png","10_of_diamonds.png","jack_of_diamonds2.png","queen_of_diamonds2.png","king_of_diamonds2.png"
+           ,"ace_of_clubs.png","2_of_clubs.png","3_of_clubs.png","4_of_clubs.png","5_of_clubs.png","6_of_clubs.png","7_of_clubs.png","8_of_clubs.png","9_of_clubs.png","10_of_clubs.png","jack_of_clubs2.png","queen_of_clubs2.png","king_of_clubs2.png"];
 
 var count = 0;
 
@@ -32,13 +32,22 @@ io.on('connection', function(socket) {
       // io.emit('chat', message + ' @' + getTime());
       console.log('income message: ' + data.message);
       if(count >= 51 || data.message == 'shuffle'){
+          data.message = 'สับไพ่';
+          io.emit('command', data);
           shuffle(deck);
           count = 0;
       }else if(data.message == 'pok'){
-          data.message = 'จั่วไพ่';
+          data.message = 'ได้รับไพ่';
           io.emit('command', data);
-          data.message = '['+deck[count++]+']' + '['+deck[count++]+']';
-          socket.emit('command', data);
+          data.message = deck[count++];
+          socket.emit('card1', data);
+          data.message = deck[count++];
+          socket.emit('card2', data);
+      }else if(data.message == 'hit'){
+          data.message = 'เรียกไพ่';
+          io.emit('command', data);
+          data.message = deck[count++];
+          socket.emit('card3', data);
       }else{
           io.emit('command', data);
       }
