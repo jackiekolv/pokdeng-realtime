@@ -32,6 +32,9 @@ html
             // สร้าง username โดยการสุ่มแบบง่ายๆ
             var username = Math.floor((Math.random() * 100) + 1);
 
+            var isPok = false;
+            var isHit = false;
+
             $('#name-here').on('blur', function() {
               var temp_name = username;
               username = $('#name-here').val();
@@ -81,12 +84,29 @@ html
                 chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
             });
 
-            socket.on('card1', function(data){
-                $("#card1").attr("src","PNG-cards-1.3/"+data.message);
+            socket.on('cards', function(data){
+                if(!isPok){
+                    $("#card3").remove();
+                    $("#card1").attr("src","PNG-cards-1.3/"+data.message[0]);
+                    $("#card2").attr("src","PNG-cards-1.3/"+data.message[1]);
+                    isPok = true;
+                }
             });
 
-            socket.on('card2', function(data){
-                $("#card2").attr("src","PNG-cards-1.3/"+data.message);
+            socket.on('card3', function(data){
+                if(!isHit){
+                    $("#card3").remove();
+                    $("#show-card").append("<img src='PNG-cards-1.3/"+data.message+"' style='width:80px' id='card3'>");
+                    isHit = true;
+                }
+            });
+
+            socket.on('shuffle', function(data){
+                $("#card3").remove();
+                $("#card1").attr("src","PNG-cards-1.3/red_joker.png");
+                $("#card2").attr("src","PNG-cards-1.3/red_joker.png");
+                isPok = false;
+                isHit = false;
             });
 
             function getTime() {

@@ -32,17 +32,21 @@ io.on('connection', function(socket) {
       // io.emit('chat', message + ' @' + getTime());
       console.log('income message: ' + data.message);
       if(count >= 51 || data.message == 'shuffle'){
-          data.message = 'สับไพ่';
+          if(count >= 51){
+              data.message = 'ไพ่หมดสำรับ';
+          }
+          else{
+              data.message = 'สับไพ่';
+          }
           io.emit('command', data);
+          io.emit('shuffle', data);
           shuffle(deck);
           count = 0;
       }else if(data.message == 'pok'){
           data.message = 'ได้รับไพ่';
           io.emit('command', data);
-          data.message = deck[count++];
-          socket.emit('card1', data);
-          data.message = deck[count++];
-          socket.emit('card2', data);
+          data.message = [deck[count++],deck[count++]];
+          socket.emit('cards', data);
       }else if(data.message == 'hit'){
           data.message = 'เรียกไพ่';
           io.emit('command', data);
