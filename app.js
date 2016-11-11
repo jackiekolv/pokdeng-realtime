@@ -29,7 +29,6 @@ io.on('connection', function(socket) {
     // เมื่อได้รับข้อมูลจากท่อ "chat" ให้ทำอะไร?
     socket.on('command', function(data) {
       // ส่งข้อความที่ได้ไปหาทุกๆ client ที่เชื่อมต่อกับท่อชื่อ "chat"
-      // io.emit('chat', message + ' @' + getTime());
       console.log('income message: ' + data.message);
       if(count >= 51 || data.message == 'shuffle'){
           if(count >= 51){
@@ -38,23 +37,29 @@ io.on('connection', function(socket) {
           else{
               data.message = 'สับไพ่';
           }
-          io.emit('command', data);
+          io.emit('chat', data);
           io.emit('shuffle', data);
           shuffle(deck);
           count = 0;
       }else if(data.message == 'pok'){
           data.message = 'ได้รับไพ่';
-          io.emit('command', data);
+          io.emit('chat', data);
           data.message = [deck[count++],deck[count++]];
           socket.emit('cards', data);
       }else if(data.message == 'hit'){
           data.message = 'เรียกไพ่';
-          io.emit('command', data);
+          io.emit('chat', data);
           data.message = deck[count++];
           socket.emit('card3', data);
       }else{
-          io.emit('command', data);
+          io.emit('chat', data);
       }
+    });
+
+    socket.on('chat', function(data) {
+      // ส่งข้อความที่ได้ไปหาทุกๆ client ที่เชื่อมต่อกับท่อชื่อ "chat"
+      console.log('income message: ' + data.message);
+      io.emit('chat', data);
     });
 });
 
