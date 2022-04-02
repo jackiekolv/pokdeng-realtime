@@ -12,6 +12,7 @@ var count = 0;
 
 var server = app.listen(port, function() {
     console.log('Listening on port: ' + port);
+    shuffle(deck);
 });
 var io = require('socket.io').listen(server);
 
