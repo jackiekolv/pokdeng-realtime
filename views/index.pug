@@ -5,26 +5,66 @@ html
         meta(name='viewport', content="initial-scale=1")
         link(rel='stylesheet', href='css/main.css')
     body
-        div.box.box--container
-            input.box(type="text", id="name-here", autocomplete="off", placeholder="Your name here...")
+        div.box.box--container(style="display: flex; align-items: center; gap: 10px;")
+            label(for="name-here" style="white-space: nowrap; flex-shrink: 0;") Name:
+            input.box(type="text", id="name-here", autocomplete="off", placeholder="Your name here..." style="flex: 1; min-width: 0;")
+            input.com--button#become-host(type="button" value="I am a Host!" style="white-space: nowrap; flex-shrink: 0; padding: 8px 12px; width: auto;")
         div.box.box--container.casino_table
-            div.left--game#show-card
-                img.playing--card(src="PNG-cards-1.3/red_joker.png" id="card1")
-                img.playing--card(src="PNG-cards-1.3/red_joker.png" id="card2")
-            div.right--game
-                input.com--button#send-pok(type="button" value="pok")
-                input.com--button#send-hit(type="button" value="hit")
-                input.com--button#send-shuffle(type="button" value="shuffle")
+            div.game-area
+                div#show-card
+                    img.playing--card(src="PNG-cards-1.3/red_joker.png" id="card1")
+                    img.playing--card(src="PNG-cards-1.3/red_joker.png" id="card2")
+                    img.playing--card(src="PNG-cards-1.3/red_joker.png" id="card3" style="display: none;")
+                div.card-info#card-info(style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 5px; font-size: 14px; display: none;")
+                    span#hand-value ค่าไพ่: -
+                    span#special-hand(style="display: block; font-size: 12px; color: #ffd700;")
+                div.game-controls
+                    input.com--button#send-shuffle(type="button" value="shuffle" style="display: none;")
+                    input.com--button#send-hit(type="button" value="hit")
+                    input.com--button#send-pok(type="button" value="pok")
+
+        // Game results section
+        div.box.box--container#game-results-section(style="display: none;")
+            div.game-results
+                h3.results-title 🎯 ผลการเล่น
+                div.host-result
+                    h4 🏠 เจ้ามือ
+                    div.host-hand#host-hand-result
+                    div.host-chips#host-chips-result
+                div.players-results#players-results-list
+                button.new-round-btn#new-round-btn ตาใหม่
+
+        // Chips and Players section combined
+        div.box.box--container
+            div.chips-info
+                div.my-chips
+                    span.chips-label My Chip:
+                    span.chips-amount#my-chips 0
+                div.current-bet
+                    span.bet-label Bet:
+                    button.bet-control-btn#bet-minus(-5) -5
+                    span.bet-amount#current-bet-display 0
+                    button.bet-control-btn#bet-plus(+5) +5
+            div.players-section
+                div.players-list#players-list
+
         div.box.box--container
             div.box.box--chat
                 ul#chat-history
                 form#chat-form(action="")
                     input.box(type="text", id="chat-message", autocomplete="off", placeholder="Enter message here...")
-        script(src="https://cdn.socket.io/socket.io-1.3.3.js")
-        script(src="https://code.jquery.com/jquery-2.1.3.min.js")
+        script(src="https://cdn.socket.io/4.7.4/socket.io.min.js")
+        script(src="https://code.jquery.com/jquery-3.6.0.min.js")
         script.
-            // เอา Socket.IO มาใช้งาน
-            var socket = io();
+            // เอา Socket.IO มาใช้งาน with connection options
+            var socket = io({
+                timeout: 20000,
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                maxReconnectionAttempts: 5,
+                transports: ['websocket', 'polling']
+            });
 
             // get element ต่างๆ มารอไว้ก่อน
             var chatForm = $('#chat-form');
@@ -34,66 +74,563 @@ html
             // set ให้ focus ที่ input ตั้งแต่เริ่ม
             inputMessage.focus();
 
-            // สร้าง username โดยการสุ่มแบบง่ายๆ
-            var username = Math.floor((Math.random() * 100) + 1);
+            // Cookie management functions
+            function setCookie(name, value, days) {
+                var expires = "";
+                if (days) {
+                    var date = new Date();
+                    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                    expires = "; expires=" + date.toUTCString();
+                }
+                document.cookie = name + "=" + (value || "") + expires + "; path=/";
+            }
+
+            function getCookie(name) {
+                var nameEQ = name + "=";
+                var ca = document.cookie.split(';');
+                for (var i = 0; i < ca.length; i++) {
+                    var c = ca[i];
+                    while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+
+            function eraseCookie(name) {
+                document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+            }
+
+            // Game state cookie functions
+            function saveGameState() {
+                var gameState = {
+                    isPok: isPok,
+                    isHit: isHit,
+                    myCurrentBet: myCurrentBet,
+                    myChips: myChips,
+                    currentHandValue: currentHandValue,
+                    cards: {
+                        card1: $("#card1").attr("src"),
+                        card2: $("#card2").attr("src"),
+                        card3: $("#card3").attr("src"),
+                        card2FaceUp: $("#card2").data("face-up-src"),
+                        card3FaceUp: $("#card3").data("face-up-src"),
+                        card3Visible: $("#card3").is(":visible")
+                    },
+                    handValue: $('#hand-value').text(),
+                    specialHand: $('#special-hand').text(),
+                    cardInfoVisible: $('#card-info').is(':visible')
+                };
+                setCookie('pokdeng_game_state', JSON.stringify(gameState), 1);
+            }
+
+            function loadGameState() {
+                var gameStateStr = getCookie('pokdeng_game_state');
+                if (gameStateStr) {
+                    try {
+                        var gameState = JSON.parse(gameStateStr);
+
+                        // Restore game flags
+                        isPok = gameState.isPok || false;
+                        isHit = gameState.isHit || false;
+                        myCurrentBet = gameState.myCurrentBet || 0;
+                        myChips = gameState.myChips || 0;
+                        currentHandValue = gameState.currentHandValue || 0;
+
+                        // Restore cards
+                        if (gameState.cards) {
+                            if (gameState.cards.card1 && !gameState.cards.card1.includes('red_joker')) {
+                                $("#card1").attr("src", gameState.cards.card1);
+                            }
+                            if (gameState.cards.card2) {
+                                $("#card2").attr("src", gameState.cards.card2);
+                                if (gameState.cards.card2FaceUp) {
+                                    $("#card2").data("face-up-src", gameState.cards.card2FaceUp);
+                                    if (gameState.cards.card2.includes('red_joker')) {
+                                        setupCardInteraction('#card2');
+                                    }
+                                }
+                            }
+                            if (gameState.cards.card3 && gameState.cards.card3Visible) {
+                                $("#card3").attr("src", gameState.cards.card3);
+                                $("#card3").show();
+                                if (gameState.cards.card3FaceUp) {
+                                    $("#card3").data("face-up-src", gameState.cards.card3FaceUp);
+                                    if (gameState.cards.card3.includes('red_joker')) {
+                                        setupCardInteraction('#card3');
+                                    }
+                                }
+                            }
+                        }
+
+                        // Restore hand info
+                        if (gameState.handValue) {
+                            $('#hand-value').text(gameState.handValue);
+                        }
+                        if (gameState.specialHand) {
+                            $('#special-hand').text(gameState.specialHand).show();
+                        }
+                        if (gameState.cardInfoVisible) {
+                            $('#card-info').show();
+                        }
+
+                        // Update UI
+                        updateChipsDisplay();
+                        updateBettingControls();
+                        updateHostControls();
+                        updateHitButtonState();
+
+                        return true;
+                    } catch (e) {
+                        console.log('Error loading game state:', e);
+                        eraseCookie('pokdeng_game_state');
+                    }
+                }
+                return false;
+            }
+
+            function clearGameState() {
+                eraseCookie('pokdeng_game_state');
+            }
+
+            // Load saved data from cookies
+            var savedUsername = getCookie('pokdeng_username');
+            var savedUserId = getCookie('pokdeng_user_id');
+            var wasHost = getCookie('pokdeng_was_host') === 'true';
+
+            // Generate or reuse user ID
+            var userId = savedUserId || 'user_' + Math.random().toString(36).substr(2, 9);
+            if (!savedUserId) {
+                setCookie('pokdeng_user_id', userId, 30); // Save for 30 days
+            }
+
+            // Set username from cookie or generate new one
+            var username = savedUsername || '';
+
+            // Set username in input field and check if valid
+            if (username) {
+                $('#name-here').val(username);
+                hasValidName = true;
+                // Auto-join if we have a valid name from cookie
+                setTimeout(function() {
+                    if (!sessionJoined && hasValidName) {
+                        socket.emit('join_game', {
+                            playerName: username,
+                            userId: userId,
+                            wasHost: wasHost
+                        });
+                    }
+                }, 500);
+            } else {
+                hasValidName = false;
+            }
 
             var isPok = false;
             var isHit = false;
+            var sessionJoined = false;
+            var isHost = false;
+            var currentHost = null;
+            var hasValidName = false;
+            var playersList = new Map(); // Track all players
+            var isSendingMessage = false; // Prevent duplicate message sending
+            var myChips = 0; // Player's chips
+            var myCurrentBet = 0; // Current bet amount
+            var currentHandValue = 0; // Current hand value for pokdeng check
 
-            $('#name-here').on('blur', function() {
-              var temp_name = username;
-              username = $('#name-here').val();
-              var nameChangeString = 'User ['+temp_name+'] has changed their name to ['+username+']';
-              socket.emit('command',
-                {
-                    username: username,
-                    message: nameChangeString
+            // Connection state management
+            var isConnected = false;
+            var reconnectAttempts = 0;
+            var lastConnectionAttempt = 0;
+            var connectionBackoff = 1000; // Start with 1 second backoff
+
+            // Auto-join game when connected
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                isConnected = true;
+                reconnectAttempts = 0;
+                connectionBackoff = 1000; // Reset backoff
+                lastConnectionAttempt = Date.now();
+
+                // Auto-join if we have a valid name from cookie
+                if (!sessionJoined && username && username.trim() !== '') {
+                    hasValidName = true;
+                    socket.emit('join_game', {
+                        playerName: username,
+                        userId: userId,
+                        wasHost: wasHost
+                    });
                 }
-              );
             });
 
-            $('#send-pok').on('click', function() {
-              socket.emit('command',
-                {
-                    username: username,
-                    message: "pok"
+            socket.on('disconnect', function(reason) {
+                console.log('Disconnected:', reason);
+                isConnected = false;
+                sessionJoined = false;
+            });
+
+            socket.on('reconnect_attempt', function(attemptNumber) {
+                reconnectAttempts = attemptNumber;
+
+                // Implement exponential backoff
+                const timeSinceLastAttempt = Date.now() - lastConnectionAttempt;
+                if (timeSinceLastAttempt < connectionBackoff) {
+                    console.log('Reconnection too soon, waiting...');
+                    return;
                 }
-              );
+
+                connectionBackoff = Math.min(connectionBackoff * 2, 30000); // Max 30 seconds
+                lastConnectionAttempt = Date.now();
+                console.log('Reconnection attempt:', attemptNumber, 'backoff:', connectionBackoff);
+            });
+
+            socket.on('reconnect_failed', function() {
+                console.log('Reconnection failed');
+                addSystemMessage('การเชื่อมต่อขาดหาย กรุณารีเฟรชหน้าเว็บ');
+            });
+
+            // Handle server errors
+            socket.on('error', function(error) {
+                console.error('Server error:', error);
+                if (error.message) {
+                    addSystemMessage('เซิร์ฟเวอร์: ' + error.message);
+
+                    // If server is full, wait before trying to reconnect
+                    if (error.message.includes('full') || error.message.includes('Too many')) {
+                        connectionBackoff = 10000; // Wait 10 seconds
+                        setTimeout(function() {
+                            if (!isConnected) {
+                                console.log('Attempting to reconnect after server full error...');
+                                socket.connect();
+                            }
+                        }, connectionBackoff);
+                    }
+                }
+            });
+
+            // Handle session joined
+            socket.on('session_joined', function(data) {
+                sessionJoined = true;
+                console.log('Joined session:', data.sessionId);
+
+                var playerCount = data.stats ? data.stats.playerCount : 1;
+                addSystemMessage('🎮 เข้าร่วมห้องเกมแล้ว! ผู้เล่นทั้งหมด: ' + playerCount + ' คน');
+                addSystemMessage('🃏 ทุกคนใช้ไพ่สำรับเดียวกัน กดปุ่ม POK เพื่อเริ่มเล่น');
+
+                // Clear existing players list and add all players
+                $('#playersList').empty();
+
+                // Update host info if provided
+                if (data.hostInfo) {
+                    currentHost = data.hostInfo.hostId;
+                    isHost = (data.hostInfo.hostId === socket.id);
+
+                    // Save host status to cookie
+                    setCookie('pokdeng_was_host', isHost.toString(), 30);
+
+                    updateHostUI();
+                }
+
+                // Add all players from server data
+                if (data.allPlayers && data.allPlayers.length > 0) {
+                    data.allPlayers.forEach(function(player) {
+                        addPlayer(player.id, player.name, player.isHost, player.chips || 0, player.currentBet || 0);
+
+                        // Update my chips if this is me
+                        if (player.id === socket.id) {
+                            myChips = player.chips || 0;
+                            myCurrentBet = player.currentBet || 0;
+                            updateChipsDisplay();
+
+                            // Update host status for betting visibility
+                            isHost = player.isHost;
+                        }
+                    });
+                } else {
+                    // Fallback: Add self to players list
+                    addPlayer(socket.id, username, isHost, myChips, myCurrentBet);
+                }
+
+                if (isHost) {
+                    addSystemMessage('🎯 คุณเป็น Host ของห้อง! สามารถสับไพ่ได้');
+                } else if (data.hostInfo && data.hostInfo.hostName) {
+                    addSystemMessage('👑 Host ปัจจุบัน: ' + data.hostInfo.hostName);
+                }
+
+                // Update betting visibility based on host status
+                updateBettingVisibility();
+            });
+
+            $('#name-here').on('blur', function() {
+              var newName = $('#name-here').val().trim();
+              if (newName && newName !== username) {
+                var temp_name = username;
+                var wasFirstTime = !hasValidName;
+                username = newName;
+                hasValidName = true;
+
+                // Save username to cookie
+                setCookie('pokdeng_username', username, 30);
+
+                if (wasFirstTime && !sessionJoined) {
+                    // First time setting name - join game
+                    socket.emit('join_game', {
+                        playerName: username,
+                        userId: userId,
+                        wasHost: wasHost
+                    });
+                } else if (sessionJoined) {
+                    // Name change after already joined
+                    var nameChangeString = 'User ['+temp_name+'] has changed their name to ['+username+']';
+                    socket.emit('chat', {
+                        username: username,
+                        message: nameChangeString
+                    });
+                }
+              }
+            });
+
+            // Host functionality - Direct host change with confirmation
+            $('#become-host').on('click', function() {
+                if (!hasValidName) {
+                    alert('กรุณากรอกชื่อก่อน');
+                    $('#name-here').focus();
+                    return;
+                }
+                if (!sessionJoined) {
+                    alert('กรุณารอสักครู่ให้เข้าร่วมเกมก่อน');
+                    return;
+                }
+                if (isHost) {
+                    alert('คุณเป็น Host อยู่แล้ว');
+                    return;
+                }
+
+                var confirmHost = confirm('คุณต้องการเป็น Host ของห้องนี้หรือไม่?');
+                if (confirmHost) {
+                    socket.emit('become_host', {
+                        username: username
+                    });
+                }
+            });
+
+            // Update host UI
+            function updateHostUI() {
+                if (isHost) {
+                    $('#become-host').val('You are Host!').prop('disabled', true).css('background-color', '#4CAF50');
+                    $('#send-shuffle').show();
+                } else {
+                    $('#become-host').val('I am a Host!').prop('disabled', false).css('background-color', '');
+                    $('#send-shuffle').hide();
+                }
+            }
+
+            // Update players list UI
+            function updatePlayersList() {
+                var playersContainer = $('#players-list');
+                playersContainer.empty();
+
+                // Convert Map to array and sort (host first)
+                var playersArray = Array.from(playersList.values());
+                playersArray.sort((a, b) => {
+                    if (a.isHost && !b.isHost) return -1;
+                    if (!a.isHost && b.isHost) return 1;
+                    return 0;
+                });
+
+                playersArray.forEach(function(player) {
+                    var playerCard = $('<div class="player-card"></div>');
+                    if (player.isHost) {
+                        playerCard.addClass('host');
+                    }
+
+                    var icon = player.isHost ? '👑' : '👤';
+                    var betInfo = '';
+                    if (!player.isHost && player.currentBet > 0) {
+                        betInfo = ' <span class="player-bet">' + player.currentBet + ' ชิป</span>';
+                    }
+
+
+
+                    playerCard.html(
+                        '<span class="player-icon">' + icon + '</span>' +
+                        '<span class="player-name">' + player.name + betInfo + '</span>'
+                    );
+
+                    playersContainer.append(playerCard);
+                });
+            }
+
+            // Add player to list
+            function addPlayer(playerId, playerName, isPlayerHost = false, chips = 0, currentBet = 0) {
+                playersList.set(playerId, {
+                    id: playerId,
+                    name: playerName,
+                    isHost: isPlayerHost,
+                    chips: chips,
+                    currentBet: currentBet
+                });
+                updatePlayersList();
+            }
+
+            // Remove player from list
+            function removePlayer(playerId) {
+                playersList.delete(playerId);
+                updatePlayersList();
+            }
+
+            // Update player host status
+            function updatePlayerHost(playerId, isPlayerHost) {
+                if (playersList.has(playerId)) {
+                    // First, remove host status from all players
+                    playersList.forEach(function(player) {
+                        player.isHost = false;
+                    });
+
+                    // Then set the new host
+                    var player = playersList.get(playerId);
+                    if (player) {
+                        player.isHost = isPlayerHost;
+                    }
+                    updatePlayersList();
+                }
+            }
+
+            // Move player to top of the list (for host)
+            function movePlayerToTop(playerId) {
+                if (playersList.has(playerId)) {
+                    var player = playersList.get(playerId);
+                    playersList.delete(playerId);
+
+                    // Create new Map with host first
+                    var newPlayersList = new Map();
+                    newPlayersList.set(playerId, player);
+
+                    // Add other players
+                    playersList.forEach(function(otherPlayer, otherId) {
+                        newPlayersList.set(otherId, otherPlayer);
+                    });
+
+                    playersList = newPlayersList;
+                    updatePlayersList();
+                }
+            }
+
+            $('#send-pok').on('click', function() {
+              if (!hasValidName) {
+                alert('กรุณากรอกชื่อก่อน');
+                $('#name-here').focus();
+                return;
+              }
+              if (!sessionJoined) {
+                alert('กรุณารอสักครู่ให้เข้าร่วมเกมก่อน');
+                return;
+              }
+              if (isPok) {
+                alert('คุณได้รับไพ่แล้ว กรุณารอให้ Host สับไพ่ใหม่');
+                return;
+              }
+
+              // Disable button immediately
+              $('#send-pok').prop('disabled', true);
+
+              socket.emit('command', {
+                  username: username,
+                  message: "pok"
+              });
             });
 
             $('#send-hit').on('click', function() {
-              socket.emit('command',
-                {
-                    username: username,
-                    message: "hit"
-                }
-              );
+              if (!hasValidName) {
+                alert('กรุณากรอกชื่อก่อน');
+                $('#name-here').focus();
+                return;
+              }
+              if (!sessionJoined) {
+                alert('กรุณารอสักครู่ให้เข้าร่วมเกมก่อน');
+                return;
+              }
+              if (!isPok) {
+                alert('กรุณากดปุ่ม POK ก่อน');
+                return;
+              }
+              if (isHit) {
+                alert('คุณได้รับไพ่ใบที่ 3 แล้ว กรุณารอให้ Host สับไพ่ใหม่');
+                return;
+              }
+
+              // Check for Pokdeng (8 or 9) - cannot hit
+              if (currentHandValue >= 8) {
+                alert('ป๊อก ' + currentHandValue + ' ไม่สามารถเรียกไพ่เพิ่มได้');
+                return;
+              }
+
+              // Disable button immediately
+              $('#send-hit').prop('disabled', true);
+
+              socket.emit('command', {
+                  username: username,
+                  message: "hit"
+              });
             });
 
             $('#send-shuffle').on('click', function() {
-              socket.emit('command',
-                {
-                    username: username,
-                    message: "shuffle"
-                }
-              );
-            });
-
-            // เมื่อเชื่อมต่อสำเร็จ ให้ส่งข้อความไปบอก server
-            socket.emit('chat', {
-                username: username,
-                message: 'I\'m connected.'
+              if (!hasValidName) {
+                alert('กรุณากรอกชื่อก่อน');
+                $('#name-here').focus();
+                return;
+              }
+              if (!sessionJoined) {
+                alert('กรุณารอสักครู่ให้เข้าร่วมเกมก่อน');
+                return;
+              }
+              if (!isHost) {
+                alert('เฉพาะ Host เท่านั้นที่สามารถสับไพ่ได้');
+                return;
+              }
+              socket.emit('command', {
+                  username: username,
+                  message: "shuffle"
+              });
             });
 
             // เมื่อ submit form ให้ทำอะไร?
-            chatForm.submit(function() {
-                // ส่งทั้ง username และ ข้อความไปให้ server
-                socket.emit('chat',
-                  {
-                      username: username,
-                      message: inputMessage.val()
-                	}
-                );
+            chatForm.off('submit').submit(function() {
+                if (!hasValidName) {
+                    alert('กรุณากรอกชื่อก่อน');
+                    $('#name-here').focus();
+                    return false;
+                }
+                if (!sessionJoined) {
+                    alert('กรุณารอสักครู่ให้เข้าร่วมเกมก่อน');
+                    return false;
+                }
+
+                var message = inputMessage.val().trim();
+                if (message && !isSendingMessage) {
+                    isSendingMessage = true;
+
+                    // แสดงข้อความของตัวเองทันที (ไม่รอ server) - LINE style
+                    var messageContainer = $('<div class="message-container message--me">');
+                    var avatar = $('<div class="message-avatar">').text(username.charAt(0).toUpperCase());
+                    var messageContent = $('<div class="message-content">');
+                    var messageBubble = $('<div class="message-bubble">').text(message);
+                    var timeElement = $('<div class="message-time">').text(getTime());
+
+                    messageContent.append(messageBubble).append(timeElement);
+                    messageContainer.append(avatar).append(messageContent);
+                    chatHistory.append(messageContainer);
+                    chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
+
+                    // ส่งทั้ง username และ ข้อความไปให้ server
+                    socket.emit('chat', {
+                        username: username,
+                        message: message
+                    });
+
+                    // Reset flag after a short delay
+                    setTimeout(function() {
+                        isSendingMessage = false;
+                    }, 100);
+                }
 
               	// clear ค่า input
                 $(this)[0].reset();
@@ -102,41 +639,344 @@ html
 
             // เมื่อได้รับข้อมูลจาก server ให้ทำอะไร?
             socket.on('chat', function(data) {
-                if (data.username == username) {
-                    // ถ้าเราเป็นคนส่งเอง ให้พ่น li.message.message--me
-                    chatHistory.append($('<li class="message message--me">').text(data.message + ' @'+getTime()));
-              	} else {
-              	    // แต่ถ้าเป็นคนอื่นส่ง ให้พ่น li.message เฉยๆ
-                    chatHistory.append($('<li class="message">').text(data.username + ': ' + data.message + ' @'+getTime()));
-              	}
-              	// เมื่อพ่นข้อความแล้ว ก็ให้เลื่อนหน้าจอไปที่ข้อความล่าสุดด้วย
-                chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
+                // แสดงเฉพาะข้อความจากคนอื่น (ไม่แสดงข้อความของตัวเอง) - LINE style
+                if (data.username !== username) {
+                    var messageContainer = $('<div class="message-container">');
+                    var avatar = $('<div class="message-avatar">').text(data.username.charAt(0).toUpperCase());
+                    var messageContent = $('<div class="message-content">');
+                    var usernameElement = $('<div class="message-username">').text(data.username);
+                    var messageBubble = $('<div class="message-bubble">').text(data.message);
+                    var timeElement = $('<div class="message-time">').text(getTime());
+
+                    messageContent.append(usernameElement).append(messageBubble).append(timeElement);
+                    messageContainer.append(avatar).append(messageContent);
+                    chatHistory.append(messageContainer);
+                    chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
+                }
             });
 
+            // Handle initial cards (2 cards)
             socket.on('cards', function(data){
                 if(!isPok){
                     $("#card3").remove();
-                    $("#card1").attr("src","PNG-cards-1.3/"+data.message[0]);
-                    $("#card2").attr("src","PNG-cards-1.3/"+data.message[1]);
-                    isPok = true;
+                    if (data.cards && data.cards.length >= 2) {
+                        // Show first card face up
+                        $("#card1").attr("src","PNG-cards-1.3/"+data.cards[0]);
+
+                        // Show second card face down initially, store face-up image
+                        $("#card2").attr("src","PNG-cards-1.3/red_joker.png");
+                        $("#card2").data("face-up-src", "PNG-cards-1.3/"+data.cards[1]);
+
+                        isPok = true;
+
+                        // Show hand value in card info area
+                        updateCardInfo(data.handValue, data.specialHand);
+
+                        // Update betting controls state
+                        updateBettingControls();
+
+                        // Update host controls
+                        updateHostControls();
+
+                        // Save game state to cookie
+                        saveGameState();
+
+                        // Setup card interaction for card2
+                        setupCardInteraction('#card2');
+                    }
                 }
             });
 
+            // Function to update card info display
+            function updateCardInfo(handValue, specialHand) {
+                currentHandValue = handValue; // Store current hand value for pokdeng check
+
+                // Debug: Check card count and pokdeng logic
+                var cardCount = document.querySelectorAll('#my-cards img').length;
+                console.log('Debug updateCardInfo: cardCount =', cardCount, 'handValue =', handValue, 'specialHand =', specialHand);
+
+                if (specialHand) {
+                    console.log('Debug specialHand details:', specialHand.type, specialHand.name, specialHand.multiplier);
+                } else {
+                    console.log('Debug: specialHand is null/undefined');
+                }
+
+                if (specialHand && specialHand.type === 'pokdeng' && cardCount !== 2) {
+                    console.error('ERROR: Pokdeng detected with', cardCount, 'cards! Should be 2 cards only.');
+                }
+
+                // Format hand display based on special hand type
+                var handDisplay = '';
+
+                if (specialHand && specialHand.type !== 'normal') {
+                    // Map English names to Thai names
+                    var thaiNames = {
+                        'pokdeng': 'ป๊อก',
+                        'tong': 'ตอง',
+                        'straight_flush': 'เรียงฟลัช',
+                        'straight': 'เรียง',
+                        'sam_luang': 'สามเหลือง',
+                        'sam_deng': 'สามเด้ง',
+                        'song_deng': 'สองเด้ง',
+                        'pair': 'คู่'
+                    };
+
+                    var thaiName = thaiNames[specialHand.type] || specialHand.name;
+
+                    // Format based on hand type
+                    if (specialHand.type === 'pokdeng') {
+                        // For pokdeng, check if it also has other special properties
+                        if (specialHand.additionalType) {
+                            handDisplay = 'ค่าไพ่: ป๊อก ' + handValue + ' ' + specialHand.additionalType;
+                        } else {
+                            handDisplay = 'ค่าไพ่: ป๊อก ' + handValue;
+                        }
+                    } else if (specialHand.type === 'tong') {
+                        handDisplay = 'ค่าไพ่: ตอง ' + handValue;
+                    } else {
+                        // For other special hands that might have pokdeng value
+                        if (handValue >= 8) {
+                            handDisplay = 'ค่าไพ่: ป๊อก ' + handValue + ' ' + thaiName;
+                        } else {
+                            handDisplay = 'ค่าไพ่: ' + handValue + ' แต้ม ' + thaiName;
+                        }
+                    }
+                } else {
+                    // Normal hand
+                    if (handValue >= 8) {
+                        handDisplay = 'ค่าไพ่: ป๊อก ' + handValue;
+                    } else {
+                        handDisplay = 'ค่าไพ่: ' + handValue + ' แต้ม';
+                    }
+                }
+
+                $('#hand-value').text(handDisplay);
+                $('#special-hand').hide(); // Hide the old special hand display
+
+                // Apply color coding based on hand type
+                var $handValue = $('#hand-value');
+                $handValue.removeClass('pokdeng tong straight sam-deng song-deng pair normal');
+
+                if (specialHand && specialHand.type !== 'normal') {
+                    switch(specialHand.type) {
+                        case 'pokdeng':
+                            $handValue.css('color', '#ffd700');
+                            break;
+                        case 'tong':
+                            $handValue.css('color', '#ff6b6b');
+                            break;
+                        case 'straight_flush':
+                        case 'straight':
+                            $handValue.css('color', '#4ecdc4');
+                            break;
+                        case 'sam_luang':
+                        case 'sam_deng':
+                            $handValue.css('color', '#45b7d1');
+                            break;
+                        case 'song_deng':
+                            $handValue.css('color', '#96ceb4');
+                            break;
+                        case 'pair':
+                            $handValue.css('color', '#feca57');
+                            break;
+                        default:
+                            $handValue.css('color', '#fff');
+                    }
+                } else {
+                    // Color for normal hands
+                    if (handValue >= 8) {
+                        $handValue.css('color', '#ffd700'); // Gold for pokdeng
+                    } else {
+                        $handValue.css('color', '#fff'); // White for normal
+                    }
+                }
+
+                $('#card-info').show();
+
+                // Update hit button state based on pokdeng
+                updateHitButtonState();
+            }
+
+            // Function to update hit button state based on pokdeng
+            function updateHitButtonState() {
+                if (isPok && currentHandValue >= 8 && !isHit) {
+                    $('#send-hit').prop('disabled', true);
+                    $('#send-hit').css('opacity', '0.5');
+                    $('#send-hit').attr('title', 'ป๊อก ' + currentHandValue + ' ไม่สามารถเรียกไพ่เพิ่มได้');
+                } else if (isPok && !isHit) {
+                    $('#send-hit').prop('disabled', false);
+                    $('#send-hit').css('opacity', '1');
+                    $('#send-hit').removeAttr('title');
+                }
+            }
+
+            // Function to setup card interaction (single click to flip)
+            function setupCardInteraction(cardSelector) {
+                var $card = $(cardSelector);
+                var isRevealed = false;
+
+                // Single click/tap to reveal card
+                $card.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    if (!isRevealed) {
+                        completeReveal($card);
+                    }
+                });
+
+                function completeReveal($card) {
+                    isRevealed = true;
+                    var faceUpSrc = $card.data('face-up-src');
+                    if (faceUpSrc) {
+                        $card.attr('src', faceUpSrc);
+                        // Add a simple flip animation
+                        $card.css({
+                            'transform': 'rotateY(180deg)',
+                            'transition': 'transform 0.3s ease'
+                        });
+
+                        setTimeout(function() {
+                            $card.css({
+                                'transform': 'rotateY(0deg)'
+                            });
+                            // Save game state after card is revealed
+                            saveGameState();
+                        }, 150);
+                    }
+                }
+            }
+
+            // Handle third card
             socket.on('card3', function(data){
-                if(!isHit&&isPok){
+                if(!isHit && isPok){
                     $("#card3").remove();
-                    $("#show-card").append("<img src='PNG-cards-1.3/"+data.message+"' class='playing--card' id='card3'>");
-                    isHit = true;
+                    if (data.card) {
+                        // Add third card face down initially, store face-up image
+                        $("#show-card").append("<img src='PNG-cards-1.3/red_joker.png' class='playing--card' id='card3'>");
+                        $("#card3").data("face-up-src", "PNG-cards-1.3/"+data.card);
+                        isHit = true;
+
+                        // Update hand value in card info area
+                        updateCardInfo(data.handValue, data.specialHand);
+
+                        // Setup card interaction for card3
+                        setupCardInteraction('#card3');
+
+                        // Save game state to cookie
+                        saveGameState();
+                    }
                 }
             });
 
+            // Handle shuffle - Reset all players' cards
             socket.on('shuffle', function(data){
+                // Remove all cards and reset to face-down
                 $("#card3").remove();
                 $("#card1").attr("src","PNG-cards-1.3/red_joker.png");
                 $("#card2").attr("src","PNG-cards-1.3/red_joker.png");
+
+                // Clear stored face-up images and reset card states
+                $("#card1, #card2, #card3").removeData("face-up-src");
+                $("#card1, #card2, #card3").off('click');
+                $("#card1, #card2, #card3").css({
+                    'transform': 'none',
+                    'transition': 'none'
+                });
+
                 isPok = false;
                 isHit = false;
+                currentHandValue = 0;
+
+                // Re-enable buttons
+                $('#send-pok').prop('disabled', false);
+                $('#send-hit').prop('disabled', false);
+                $('#send-hit').css('opacity', '1');
+                $('#send-hit').removeAttr('title');
+
+                // Hide card info
+                $('#card-info').hide();
+
+                // Re-enable betting controls
+                updateBettingControls();
+
+                // Update host controls
+                updateHostControls();
+
+                // Clear game state from cookie
+                clearGameState();
+
+                if (data.remainingCards !== undefined) {
+                    var shuffleMsg = '🔄 Host สับไพ่ใหม่แล้ว! ไพ่ทุกคนถูกคว่ำ คงเหลือ: ' + data.remainingCards + ' ใบ';
+                    if (data.shuffledBy) {
+                        shuffleMsg = '🔄 ' + data.shuffledBy + ' (Host) สับไพ่ใหม่แล้ว! ไพ่ทุกคนถูกคว่ำ คงเหลือ: ' + data.remainingCards + ' ใบ';
+                    }
+                    addSystemMessage(shuffleMsg);
+                }
             });
+
+            // Handle errors
+            socket.on('error', function(data) {
+                alert('Error: ' + data.message);
+                console.error('Socket error:', data);
+            });
+
+            // Handle player events
+            socket.on('player_joined', function(data) {
+                var playerCount = data.stats ? data.stats.playerCount : '?';
+                addSystemMessage('🎮 ' + data.playerName + ' เข้าร่วมห้อง (ผู้เล่นทั้งหมด: ' + playerCount + ' คน)');
+
+                // Add new player to list (not host by default)
+                if (data.playerId && data.playerId !== socket.id) {
+                    addPlayer(data.playerId, data.playerName, false, data.chips || 0, data.currentBet || 0);
+                }
+            });
+
+            socket.on('player_left', function(data) {
+                var playerCount = data.stats ? data.stats.playerCount : '?';
+                addSystemMessage('👋 ผู้เล่นออกจากห้อง (เหลือ: ' + playerCount + ' คน)');
+
+                // Remove player from list
+                if (data.playerId) {
+                    removePlayer(data.playerId);
+                }
+            });
+
+            // Host management events
+            socket.on('host_changed', function(data) {
+                // Update previous host to not be host
+                if (currentHost && currentHost !== data.hostId) {
+                    updatePlayerHost(currentHost, false);
+                }
+
+                currentHost = data.hostId;
+                var wasHost = isHost;
+                isHost = (data.hostId === socket.id);
+
+                // Save host status to cookie
+                setCookie('pokdeng_was_host', isHost.toString(), 30);
+
+                updateHostUI();
+
+                // Update new host in players list and move to top
+                updatePlayerHost(data.hostId, true);
+                movePlayerToTop(data.hostId);
+
+                // Update betting visibility based on new host status
+                updateBettingVisibility();
+
+                // Only show message if host actually changed
+                if (!wasHost && isHost) {
+                    addSystemMessage('🎯 คุณเป็น Host ของห้องแล้ว!');
+                } else if (wasHost && !isHost) {
+                    addSystemMessage('👑 Host ใหม่: ' + data.hostName);
+                } else if (data.hostName && currentHost !== socket.id) {
+                    // Silent update for host reconnection
+                    console.log('Host reconnected:', data.hostName);
+                }
+            });
+
+
 
             function getTime() {
                 var date = new Date();
@@ -144,7 +984,221 @@ html
                 hour = (hour < 10 ? "0" : "") + hour;
                 var min  = date.getMinutes();
                 min = (min < 10 ? "0" : "") + min;
-                var sec  = date.getSeconds();
-                sec = (sec < 10 ? "0" : "") + sec;
-                return hour + ":" + min + ":" + sec;
+                return hour + "." + min + " น.";
+            }
+
+            // Helper function to add system message with LINE-style time
+            function addSystemMessage(text) {
+                var messageContainer = $('<div class="message-container system-message">');
+                var avatar = $('<div class="message-avatar">').text('🎮');
+                var messageContent = $('<div class="message-content">');
+                var usernameElement = $('<div class="message-username">').text('System');
+                var messageBubble = $('<div class="message-bubble">').text(text);
+                var timeElement = $('<div class="message-time">').text(getTime());
+
+                messageContent.append(usernameElement).append(messageBubble).append(timeElement);
+                messageContainer.append(avatar).append(messageContent);
+                chatHistory.append(messageContainer);
+                chatHistory[0].scrollTop = chatHistory[0].scrollHeight;
+            }
+
+            // Betting functionality
+            var currentBet = 5;
+
+            // Function to update betting controls state
+            function updateBettingControls() {
+                var shouldDisable = isPok; // Disable when cards are revealed
+
+                $('.bet-button').prop('disabled', shouldDisable);
+                $('#bet-amount').prop('disabled', shouldDisable);
+
+                if (shouldDisable) {
+                    $('.betting-section').addClass('disabled');
+                } else {
+                    $('.betting-section').removeClass('disabled');
+                }
+            }
+
+
+
+            // Set default active button
+            $('.bet-button[data-amount="5"]').addClass('active');
+
+            // Update chips display
+            function updateChipsDisplay() {
+                $('#my-chips').text(myChips);
+                $('#current-bet-display').text(myCurrentBet);
+            }
+
+            // Update betting section visibility based on host status
+            function updateBettingVisibility() {
+                if (isHost) {
+                    $('.current-bet').hide(); // Hide current bet for host
+                    $('.my-chips').show(); // Show chips for host
+                    $('.chips-info').show(); // Show chips info container
+                } else {
+                    $('.current-bet').show(); // Show current bet for players
+                    $('.my-chips').show(); // Show chips for players
+                    $('.chips-info').show(); // Show chips info container
+                }
+            }
+
+            // Bet control buttons
+            $('#bet-plus').off('click').on('click', function() {
+                if (isPok) {
+                    addSystemMessage('⚠️ ไม่สามารถเปลี่ยนเดิมพันได้ เนื่องจากได้รับไพ่แล้ว รอให้ Host สับไพ่ใหม่');
+                    return;
+                }
+
+                if (isHost) {
+                    addSystemMessage('⚠️ Host ไม่ต้องลงเดิมพัน');
+                    return;
+                }
+
+                var newBet = myCurrentBet + 5;
+                myCurrentBet = newBet;
+                updateChipsDisplay();
+
+                // Update bet display immediately
+                $('#current-bet-display').text(myCurrentBet);
+
+                // Send bet immediately
+                if (myCurrentBet > 0) {
+                    socket.emit('place_bet', {
+                        amount: myCurrentBet
+                    });
+                }
+
+                // Save betting state
+                saveGameState();
+            });
+
+            $('#bet-minus').off('click').on('click', function() {
+                if (isPok) {
+                    addSystemMessage('⚠️ ไม่สามารถเปลี่ยนเดิมพันได้ เนื่องจากได้รับไพ่แล้ว รอให้ Host สับไพ่ใหม่');
+                    return;
+                }
+
+                if (isHost) {
+                    addSystemMessage('⚠️ Host ไม่ต้องลงเดิมพัน');
+                    return;
+                }
+
+                var newBet = Math.max(0, myCurrentBet - 5);
+                myCurrentBet = newBet;
+                updateChipsDisplay();
+
+                // Update bet display immediately
+                $('#current-bet-display').text(myCurrentBet);
+
+                // Send bet immediately
+                if (myCurrentBet > 0) {
+                    socket.emit('place_bet', {
+                        amount: myCurrentBet
+                    });
+                }
+
+                // Save betting state
+                saveGameState();
+            });
+
+            // Old bet input removed - now using +/- buttons
+
+            // Initialize chips display and betting visibility
+            updateChipsDisplay();
+            updateBettingVisibility();
+
+            // Load saved game state on page load
+            loadGameState();
+
+            // Prevent auto-scroll on page load
+            $(document).ready(function() {
+                window.scrollTo(0, 0); // Scroll to top on page load
+            });
+
+            // Socket event handlers for betting system
+            socket.on('bet_placed', function(data) {
+                if (data.playerId === socket.id) {
+                    // Update my chips
+                    myChips = data.remainingChips;
+                    updateChipsDisplay();
+                    addSystemMessage('✅ เดิมพัน ' + data.betAmount + ' ชิป สำเร็จ');
+
+                    // Save updated chips state
+                    saveGameState();
+                } else {
+                    // Show other player's bet
+                    addSystemMessage('💰 ' + data.playerName + ' เดิมพัน ' + data.betAmount + ' ชิป');
+                }
+
+                // Update player's bet in the list
+                if (playersList.has(data.playerId)) {
+                    var player = playersList.get(data.playerId);
+                    player.currentBet = data.betAmount;
+                    player.chips = data.remainingChips;
+                    updatePlayersList();
+                }
+            });
+
+            socket.on('bets_locked', function() {
+                addSystemMessage('🔒 การเดิมพันถูกล็อค ไม่สามารถเปลี่ยนแปลงได้แล้ว');
+                updateChipsDisplay();
+            });
+
+            socket.on('game_results', function(data) {
+                showGameResults(data);
+            });
+
+            // Function to show game results
+            function showGameResults(data) {
+                // Update host result
+                $('#host-hand-result').html(
+                    '<div>ไพ่: ' + data.hostHand.name + ' (แต้ม: ' + data.hostValue + ')</div>' +
+                    '<div>ตัวคูณ: x' + data.hostHand.multiplier + '</div>'
+                );
+                $('#host-chips-result').text('ชิป: ' + data.hostChips);
+
+                // Update players results
+                var resultsHtml = '';
+                data.results.forEach(function(result) {
+                    var resultClass = result.result;
+                    var resultText = result.result === 'win' ? 'ชนะ' :
+                                   result.result === 'lose' ? 'แพ้' : 'เสมอ';
+                    var winText = result.winAmount > 0 ? '+' + result.winAmount :
+                                 result.winAmount < 0 ? result.winAmount : '0';
+
+                    resultsHtml += '<div class="player-result ' + resultClass + '">' +
+                        '<div class="player-name">' + result.playerName + ' - ' + resultText + '</div>' +
+                        '<div class="player-hand">ไพ่: ' + result.playerHand.name + ' (แต้ม: ' + result.playerValue + ', x' + result.playerHand.multiplier + ')</div>' +
+                        '<div class="player-chips">เดิมพัน: ' + result.betAmount + ' | ได้/เสีย: ' + winText + ' | ชิปใหม่: ' + result.newChips + '</div>' +
+                    '</div>';
+
+                    // Update my chips if this is me
+                    if (result.playerId === socket.id) {
+                        myChips = result.newChips;
+                        myCurrentBet = 0;
+                        updateChipsDisplay();
+
+                        // Save updated chips state
+                        saveGameState();
+                    }
+                });
+
+                $('#players-results-list').html(resultsHtml);
+                $('#game-results-section').show();
+
+                // Add system message
+                addSystemMessage('🎯 ผลการเล่นออกแล้ว! ดูรายละเอียดด้านบน');
+            }
+
+            // New round button
+            $('#new-round-btn').off('click').on('click', function() {
+                $('#game-results-section').hide();
+                addSystemMessage('🔄 เริ่มตาใหม่ พร้อมเดิมพัน!');
+            });
+
+            // Host calculate winnings button (removed as requested)
+            function updateHostControls() {
+                // Remove calculate winnings button functionality
+                $('#calculate-winnings-btn').remove();
             }
